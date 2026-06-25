@@ -75,12 +75,6 @@ Extensions: 30004 (Attestation), 30005 (Dispute), 30006 (Resolution).
 
 ```
 acp/
-├── 00_START_HERE/          # Foundation, spec, suspects, threat model
-│   ├── FOUNDATION.md
-│   ├── ACPv0_SPEC.md
-│   ├── SUSPECT_GENERATION.md
-│   ├── HARNESS_DESIGN.md
-│   └── THREAT_MODEL.md
 ├── acp/                    # Python SDK
 │   ├── agent.py            # Zero-config ACPAgent
 │   ├── identity.py         # Nostr keypair
@@ -98,6 +92,7 @@ acp/
 │       ├── identity.ts
 │       ├── crypto.ts
 │       ├── events.ts
+│       ├── index.ts
 │       └── mock_lightning.ts
 ├── tests/                  # 50 tests (L0-L4)
 │   ├── test_l0_format.py
@@ -176,6 +171,12 @@ L4 Agent Tool:  13/13  (confirmation, limits, auto-confirm, receipts)
 Cross-language: Python ↔ TypeScript interop PASS
 Real service:   Live BTC price fetch PASS
 ```
+
+## Development
+
+This protocol and reference implementations were co-developed with AI assistance
+(Claude / Hermes Agent). The design methodology, suspect generation, and test
+harness architecture were guided by AI-human collaboration.
 
 ## License
 
