@@ -72,7 +72,7 @@ class TestAgentTool:
         # Price exceeds max_per_purchase (8000)
         result = self.tool.execute(confirm)
         assert not result.success
-        assert "лимит" in result.error.lower() or "limit" in result.error.lower()
+        assert "limit" in result.error.lower()
 
     def test_limit_balance_exceeded(self):
         """Purchase exceeding balance is blocked."""
@@ -83,7 +83,7 @@ class TestAgentTool:
         confirm = self.tool.discover("car", budget_sat=50000)
         result = self.tool.execute(confirm)
         assert not result.success
-        assert "недостаточно" in result.error.lower() or "insufficient" in result.error.lower()
+        assert "insufficient" in result.error.lower()
 
     def test_daily_limit_exceeded(self):
         """Multiple purchases exceeding daily limit are blocked."""
@@ -128,7 +128,7 @@ class TestAgentTool:
         """Searching for non-existent service returns no provider."""
         confirm = self.tool.discover("nonexistent", budget_sat=1000)
         assert confirm.price_sat == 0
-        assert "N/A" in confirm.provider_name or "не нашёл" in confirm.description.lower()
+        assert "N/A" in confirm.provider_name or "not found" in confirm.description.lower()
 
     def test_receipt_reported(self):
         """Successful purchase includes receipt ID (proof of spending)."""

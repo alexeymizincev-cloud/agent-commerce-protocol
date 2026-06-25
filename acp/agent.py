@@ -1,11 +1,11 @@
 """
 ACP Agent — zero-config agent payment capability.
 
-Принцип: пользователь даёт ТОЛЬКО кошелёк. Всё остальное автоматически.
+Principle: user provides ONLY a wallet. Everything else is automatic.
 
-Usage (в любом agent-фреймворке):
+Usage (in any agent framework):
     agent = ACPAgent(wallet_nwc="nwc://user@wallet.relay")
-    # или
+    # or
     agent = ACPAgent(wallet_lnbits_url="https://demo.lnbits.com",
                      wallet_lnbits_invoice_key="xxx",
                      wallet_lnbits_admin_key="xxx")
@@ -23,11 +23,11 @@ Usage (в любом agent-фреймворке):
     result = agent.execute(result)
     # → "Done. VPN key: xxxx. Spent 5000 sats."
 
-Пользователь НЕ настраивает:
-- Nostr relay (авто: публичные релеи)
-- Lightning node (авто: через кошелёк API)
-- Keypair (авто: генерируется)
-- Discovery (авто: подписка на t:agent-commerce)
+User does NOT configure:
+- Nostr relay (auto: public relays)
+- Lightning node (auto: via wallet API)
+- Keypair (auto: generated)
+- Discovery (auto: subscription to t:agent-commerce)
 """
 
 import os
@@ -53,7 +53,7 @@ DEFAULT_RELAYS = [
 
 @dataclass
 class WalletConfig:
-    """Конфиг кошелька — единственное что даёт пользователь."""
+    ""Wallet config — the only thing the user provides.""
     wallet_type: str  # "nwc" | "lnbits" | "mock"
     # NWC
     nwc_uri: Optional[str] = None
@@ -61,18 +61,18 @@ class WalletConfig:
     lnbits_url: Optional[str] = None
     lnbits_invoice_key: Optional[str] = None
     lnbits_admin_key: Optional[str] = None
-    # Limits (опционально — пользователь может поставить)
+    # Limits (optional — user can set)
     max_per_purchase_sat: Optional[int] = None
     daily_limit_sat: Optional[int] = None
 
     @classmethod
     def nwc(cls, uri: str, **kwargs) -> "WalletConfig":
-        """Из NWC URI (Phoenix, Alby, Mutiny, Breez)."""
+        """From NWC URI (Phoenix, Alby, Mutiny, Breez)."""
         return cls(wallet_type="nwc", nwc_uri=uri, **kwargs)
 
     @classmethod
     def lnbits(cls, url: str, invoice_key: str, admin_key: str, **kwargs) -> "WalletConfig":
-        """Из LNbits API keys."""
+        """From LNbits API keys."""
         return cls(
             wallet_type="lnbits",
             lnbits_url=url,
@@ -83,22 +83,22 @@ class WalletConfig:
 
     @classmethod
     def mock(cls, balance_sat: int = 10000, **kwargs) -> "WalletConfig":
-        """Mock wallet для тестирования (без реальных sats)."""
+        """Mock wallet for testing (no real sats)."""
         return cls(wallet_type="mock", **kwargs)
 
 
 class ACPAgent:
     """Zero-config ACP agent.
 
-    Пользователь даёт wallet config → агент настраивает всё сам.
+    User provides wallet config → agent configures everything itself.
 
-    Что делается автоматически:
-    1. Nostr keypair генерируется
-    2. Публичные релеи подключаются
-    3. Wallet подключается (NWC / LNbits / mock)
-    4. Balance проверяется
-    5. Discovery подписка активируется
-    6. Buy tool готов к использованию
+    What happens automatically:
+    1. Nostr keypair generated
+    2. Public relays connected
+    3. Wallet connected (NWC / LNbits / mock)
+    4. Balance checked
+    5. Discovery subscription activated
+    6. Buy tool ready
     """
 
     def __init__(self, wallet: WalletConfig,
@@ -124,7 +124,7 @@ class ACPAgent:
             self._auto_configure()
 
     def _setup_wallet(self):
-        """Настройка кошелька по типу."""
+        """Setup wallet by type."""
         if self.wallet_config.wallet_type == "mock":
             balance = 10000  # mock balance
             self.lightning = MockLightning()
@@ -173,45 +173,45 @@ class ACPAgent:
             self._balance = 10000  # placeholder
 
     def _auto_configure(self):
-        """Автоматическая настройка: keypair, relays, discovery."""
+        """Auto-configure: keypair, relays, discovery."""
         # Keypair already generated in __init__
         # In production: connect to public Nostr relays
         # For now: mark as configured
         self._connected = True
 
-    # ─── User-facing API (единственное что видит пользователь) ───
+    # ─── User-facing API (the only thing the user sees) ───
 
     def status(self) -> str:
-        """Статус агента — для пользователя."""
+        """Agent status — for the user."""
         return (
-            f"ACP Agent готов.\n"
-            f"Кошелёк: {self.wallet_config.wallet_type}\n"
-            f"Баланс: {self.agent_wallet.get_balance()} сатов\n"
-            f"Лимит на покупку: {self.agent_wallet.max_per_purchase} сатов\n"
-            f"Дневной лимит: {self.agent_wallet.daily_limit} сатов\n"
+            f"ACP Agent ready.\n"
+            f"Wallet: {self.wallet_config.wallet_type}\n"
+            f"Balance: {self.agent_wallet.get_balance()} sats\n"
+            f"Per-purchase limit: {self.agent_wallet.max_per_purchase} sats\n"
+            f"Daily limit: {self.agent_wallet.daily_limit} sats\n"
         )
 
     def discover(self, query: str, budget_sat: int) -> ConfirmRequest:
-        """Найти услугу. Возвращает запрос на подтверждение."""
+        """Find a service. Returns confirmation request."""
         return self.tool.discover(query, budget_sat)
 
     def execute(self, confirm: ConfirmRequest) -> PurchaseResult:
-        """Выполнить покупку после подтверждения пользователя."""
+        """Execute purchase after user confirmation."""
         return self.tool.execute(confirm)
 
     def buy(self, query: str, budget_sat: int,
             auto_confirm: bool = False):
-        """Полный цикл: найти → подтвердить → купить."""
+        """Full cycle: discover → confirm → buy."""
         return self.tool.buy(query, budget_sat, auto_confirm)
 
     def balance(self) -> int:
-        """Баланс кошелька."""
+        """Wallet balance."""
         return self.agent_wallet.get_balance()
 
     def top_up(self, amount_sat: int):
-        """Пополнить кошелёк."""
+        """Top up wallet."""
         self.agent_wallet.top_up(amount_sat)
 
     def register_provider(self, **kwargs):
-        """Регистрация провайдера (для тестов/demo)."""
+        """Register provider (for tests/demo)."""
         self.tool.register_provider(**kwargs)

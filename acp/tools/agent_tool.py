@@ -1,10 +1,10 @@
 """
-ACP Agent Tool — плагин для agent-фреймворков (Claude Code, Hermes, Codex, LangChain).
+ACP Agent Tool — plugin for agent frameworks (Claude Code, Hermes, Codex, LangChain).
 
-Принцип: пользователь видит ТОЛЬКО запрос подтверждения + результат.
-Всё остальное (Nostr, Lightning, preimage, receipt) — бэкенд.
+Principle: user sees ONLY confirmation request + result.
+Everything else (Nostr, Lightning, preimage, receipt) — backend.
 
-Usage в любом agent-фреймворке:
+Usage in any agent framework:
     tool = ACPBuyTool(wallet, relay_url)
     result = tool.discover("vpn", budget_sat=5000)
     # → "Found VPN Agent. Price: 5000 sats. Confirm?"
@@ -12,7 +12,7 @@ Usage в любом agent-фреймворке:
     result = tool.execute(provider, budget_sat=5000)
     # → "Bought. VPN key: xxxx. Spent: 5000 sats."
 
-Или одной командой (если auto_confirm=False):
+Or in one command (if auto_confirm=False):
     result = tool.buy("vpn", budget_sat=5000)
 """
 
@@ -28,7 +28,7 @@ from ..protocol import ACPProtocol, MockLightning
 
 @dataclass
 class ConfirmRequest:
-    """Что агент показывает пользователю перед покупкой."""
+    """What the agent shows the user before purchase."""
     service: str
     price_sat: int
     provider_name: str
@@ -36,15 +36,15 @@ class ConfirmRequest:
     provider_pubkey: str
 
     def __str__(self):
-        return (f"Найдено: {self.service} от {self.provider_name}\n"
-                f"Цена: {self.price_sat} сатов\n"
-                f"Провайдер: {self.provider_pubkey[:24]}...\n"
-                f"Купить? (да/нет)")
+        return (f"Found: {self.service} from {self.provider_name}\n"
+                f"Price: {self.price_sat} sats\n"
+                f"Provider: {self.provider_pubkey[:24]}...\n"
+                f"Buy? (yes/no)")
 
 
 @dataclass
 class PurchaseResult:
-    """Что агент показывает пользователю после покупки."""
+    """What the agent shows the user after purchase."""
     success: bool
     service: str
     provider_name: str
@@ -55,18 +55,18 @@ class PurchaseResult:
 
     def __str__(self):
         if not self.success:
-            return f"Не удалось купить: {self.error}"
+            return f"Purchase failed: {self.error}"
         result_text = self.result_data.decode('utf-8', errors='replace') if self.result_data else ''
-        return (f"Готово. {self.service} куплен у {self.provider_name}.\n"
-                f"Потрачено: {self.price_sat} сатов\n"
-                f"Результат: {result_text[:200]}")
+        return (f"Done. {self.service} bought from {self.provider_name}.\n"
+                f"Spent: {self.price_sat} sats\n"
+                f"Result: {result_text[:200]}")
 
 
 class AgentWallet:
-    """Prepaid кошелёк агента с лимитами.
+    """Prepaid agent wallet with limits.
 
-    Принцип: агент ФИЗИЧЕСКИ не может потратить больше лимита.
-    Человек грузит N сатов → агент ограничен.
+    Principle: agent CANNOT physically spend beyond limit.
+    Human loads N sats → agent is limited.
     """
 
     def __init__(self, balance_sat: int, max_per_purchase: int = None,
@@ -75,21 +75,21 @@ class AgentWallet:
         self.max_per_purchase = max_per_purchase or balance_sat
         self.daily_limit = daily_limit or balance_sat
         self.spent_today = 0
-        self.lightning = MockLightning()  # В проде: real LNbits/LND
+        self.lightning = MockLightning()  # In production: real LNbits/LND
 
     def can_spend(self, amount_sat: int) -> tuple[bool, str]:
-        """Проверка лимитов. Возвращает (можно, причина)."""
+        """Check limits. Returns (allowed, reason)."""
         if amount_sat > self.balance_sat:
-            return False, f"Недостаточно средств (баланс: {self.balance_sat} сат)"
+            return False, f"Insufficient balance ({self.balance_sat} sats)"
         if amount_sat > self.max_per_purchase:
-            return False, f"Превышен лимит на покупку ({self.max_per_purchase} сат)"
+            return False, f"Per-purchase limit exceeded ({self.max_per_purchase} sats)"
         if self.spent_today + amount_sat > self.daily_limit:
             remaining = self.daily_limit - self.spent_today
-            return False, f"Превышен дневной лимит (осталось: {remaining} сат)"
+            return False, f"Daily limit exceeded (remaining: {remaining} sats)"
         return True, "OK"
 
     def spend(self, amount_sat: int):
-        """Списать средства. Бросает исключение если лимит превышен."""
+        """Deduct funds. Raises if limit exceeded."""
         ok, reason = self.can_spend(amount_sat)
         if not ok:
             raise ValueError(reason)
@@ -100,18 +100,18 @@ class AgentWallet:
         return self.balance_sat
 
     def top_up(self, amount_sat: int):
-        """Человек пополняет кошелёк агента."""
+        """Human tops up agent wallet."""
         self.balance_sat += amount_sat
 
 
 class ACPBuyTool:
-    """ACP buy tool для agent-фреймворков.
+    """ACP buy tool for agent frameworks.
 
-    Два режима:
-    1. discover() → confirm → execute() (явное подтверждение, по умолчанию)
-    2. buy() с auto_confirm=True (для automation)
+    Two modes:
+    1. discover() → confirm → execute() (explicit confirmation, default)
+    2. buy() with auto_confirm=True (for automation)
 
-    Принцип: пользователь видит только ConfirmRequest и PurchaseResult.
+    Principle: user sees only ConfirmRequest and PurchaseResult.
     """
 
     def __init__(self, wallet: AgentWallet, identity: AgentIdentity,
@@ -123,16 +123,16 @@ class ACPBuyTool:
         self._pending_providers = {}  # cached discover results
 
     def discover(self, query: str, budget_sat: int) -> ConfirmRequest:
-        """Найти провайдера. Возвращает ConfirmRequest для пользователя.
+        """Find a provider. Returns ConfirmRequest for the user.
 
-        Агент НЕ покупает. Только показывает что нашёл и спрашивает.
+        Agent does NOT buy. Only shows what it found and asks.
         """
-        # В реальной реализации: query Nostr relay for manifests
-        # Для v0: используем mock provider из _pending_providers
-        # (в tests мы добавляем провайдеров напрямую)
+        # In real implementation: query Nostr relay for manifests
+        # For v0: use mock provider from _pending_providers
+        # (in tests we add providers directly)
         provider = self._pending_providers.get(query)
         if provider:
-            # Проверяем лимиты ДО показа пользователю
+            # Check limits BEFORE showing to user
             ok, reason = self.wallet.can_spend(provider["price_sat"])
             if not ok:
                 return ConfirmRequest(
@@ -150,7 +150,7 @@ class ACPBuyTool:
         return ConfirmRequest(
             service=query, price_sat=0,
             provider_name="N/A",
-            description=f"Не нашёл провайдера для: {query}",
+            description=f"No provider found for: {query}",
             provider_pubkey=""
         )
 
@@ -159,9 +159,9 @@ class ACPBuyTool:
                           description: str = "",
                           manifest_event: dict = None,
                           result_data: bytes = None):
-        """Регистрация провайдера (для тестов / demo).
+        """Register provider (for tests / demo).
 
-        В проде: провайдеры сами публикуют manifest на Nostr relay.
+        In production: providers publish manifests on Nostr relay.
         """
         self._pending_providers[service] = {
             "service": service,
@@ -174,16 +174,16 @@ class ACPBuyTool:
         }
 
     def execute(self, confirm: ConfirmRequest) -> PurchaseResult:
-        """Выполнить покупку ПОСЛЕ подтверждения пользователя.
+        """Execute purchase AFTER user confirmation.
 
-        Полный цикл (всё невидимо для пользователя):
-        1. Проверка лимитов
-        2. Создание request (Nostr event)
-        3. Провайдер создаёт offer (hold invoice + encrypted result)
-        4. Агент платит (Lightning)
-        5. Провайдер settle (reveals preimage)
-        6. Агент decrypts result
-        7. Списание с кошелька
+        Full cycle (all invisible to user):
+        1. Check limits
+        2. Create request (Nostr event)
+        3. Provider creates offer (hold invoice + encrypted result)
+        4. Agent pays (Lightning)
+        5. Provider settles (reveals preimage)
+        6. Agent decrypts result
+        7. Deduct from wallet
         """
         if confirm.price_sat == 0:
             return PurchaseResult(
@@ -193,7 +193,7 @@ class ACPBuyTool:
                 error=confirm.description
             )
 
-        # Проверка лимитов
+        # Check limits
         ok, reason = self.wallet.can_spend(confirm.price_sat)
         if not ok:
             return PurchaseResult(
@@ -203,45 +203,45 @@ class ACPBuyTool:
                 error=reason
             )
 
-        # Получаем провайдера из кэша
+        # Get provider from cache
         provider = self._pending_providers.get(confirm.service)
         if not provider:
             return PurchaseResult(
                 success=False, service=confirm.service,
                 provider_name=confirm.provider_name,
                 price_sat=confirm.price_sat, result_data=None,
-                error="Провайдер не найден в кэше"
+                error="Provider not found in cache"
             )
 
-        # Создаём provider identity (для mock)
+        # Create provider identity (for mock)
         provider_identity = AgentIdentity.generate()
 
-        # Создаём request
+        # Create request
         request = self.protocol.create_request(
             identity=self.identity,
             need={"service": confirm.service, "content_type": "text/plain"},
             budget_msat=confirm.price_sat * 1000,
         )
 
-        # Провайдер создаёт offer с atomic delivery
+        # Provider creates offer with atomic delivery
         result_data = provider.get("result_data", b"Service delivered.")
         offer, preimage = self.protocol.create_offer(
             provider_identity, request, result_data,
             confirm.price_sat * 1000
         )
 
-        # Агент платит
+        # Agent pays
         self.protocol.accept_offer_and_pay(offer)
 
-        # Провайдер settle
+        # Provider settles
         receipt = self.protocol.settle_and_publish_receipt(
             provider_identity, offer, preimage, confirm.price_sat * 1000
         )
 
-        # Агент decrypts
+        # Agent decrypts
         decrypted = self.protocol.decrypt_result_from_receipt(receipt, offer)
 
-        # Списываем с кошелька
+        # Deduct from wallet
         self.wallet.spend(confirm.price_sat)
 
         return PurchaseResult(
@@ -255,10 +255,10 @@ class ACPBuyTool:
 
     def buy(self, query: str, budget_sat: int,
             auto_confirm: bool = False) -> PurchaseResult:
-        """Полный цикл одной командой.
+        """Full cycle in one command.
 
-        Если auto_confirm=True: не спрашивает пользователя (для automation).
-        Если auto_confirm=False: возвращает ConfirmRequest (нужен execute()).
+        If auto_confirm=True: does not ask user (for automation).
+        If auto_confirm=False: returns ConfirmRequest (needs execute()).
         """
         confirm = self.discover(query, budget_sat)
         if confirm.price_sat == 0:
@@ -270,4 +270,4 @@ class ACPBuyTool:
             )
         if auto_confirm:
             return self.execute(confirm)
-        return confirm  # Возвращает ConfirmRequest, ждёт "да"
+        return confirm  # Returns ConfirmRequest, waits for "yes"

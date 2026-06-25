@@ -1,15 +1,15 @@
 """
-ACP Provider types — три типа провайдеров.
+ACP Provider types — three provider types.
 
-1. Native: принимает Lightning напрямую (LNURL/BOLT11)
-2. Bridge: принимает Lightning, платит через сторонний API (Stripe, PayPal)
-3. Adapter: обёртка над существующим сервисом (Bitrefill, CoinGate)
+1. Native: accepts Lightning directly (LNURL/BOLT11)
+2. Bridge: accepts Lightning, pays via third-party API (Stripe, PayPal)
+3. Adapter: wrapper over existing service (Bitrefill, CoinGate)
 
-Все три = ACP-совместимые провайдеры. Разница — как они исполняют
-обязательство после получения Lightning-платежа.
+All three are ACP-compatible providers. The difference is how they fulfill
+the obligation after receiving Lightning payment.
 
-Протокол НЕ знает и НЕ заботится как провайдер исполняет.
-Манифест = "я продаю X за N сатов". Как — не протокольная забота.
+The protocol does NOT know or care how the provider fulfills.
+Manifest = "I sell X for N sats". How — not the protocol concern.
 """
 
 from dataclasses import dataclass
@@ -22,24 +22,24 @@ from .protocol import MockLightning
 
 @dataclass
 class ProviderManifest:
-    """Провайдер manifest + метаданные для routing."""
+    """Provider manifest + routing metadata."""
     service: str
     provider_type: str  # "native" | "bridge" | "adapter"
     name: str
     price_msat: int
     pay_endpoint: str
     description: str
-    target: Optional[str] = None  # для bridge: "stripe", "paypal", etc.
-    fee_pct: Optional[float] = None  # для bridge: комиссия
+    target: Optional[str] = None  # for bridge: "stripe", "paypal", etc.
+    fee_pct: Optional[float] = None  # for bridge: fee
 
 
 class NativeProvider:
-    """Type 1: принимает Lightning напрямую.
+    """Type 1: accepts Lightning directly.
 
-    Пример: VPN провайдер с BTCPay Server, LNbits, или LND.
-    Агент платит через LNURL → получает результат.
+    Example: VPN provider with BTCPay Server, LNbits, or LND.
+    Agent pays via LNURL → gets result.
 
-    Никакого Stripe, fiat, или браузера. Чистый Lightning.
+    No Stripe, fiat, or browser. Pure Lightning.
     """
 
     def __init__(self, identity: AgentIdentity, service: str,
@@ -52,7 +52,7 @@ class NativeProvider:
         self.lightning = lightning or MockLightning()
 
     def get_manifest(self) -> dict:
-        """Публикует manifest на Nostr relay."""
+        """Publishes manifest on Nostr relay."""
         from .protocol import ACPProtocol
         p = ACPProtocol(lightning=self.lightning)
         return p.create_manifest(
@@ -71,7 +71,7 @@ class NativeProvider:
         )
 
     def fulfill(self, request_event: dict) -> tuple[dict, bytes]:
-        """Создаёт offer с atomic delivery. Возвращает (offer_event, preimage)."""
+        """Creates offer with atomic delivery. Returns (offer_event, preimage)."""
         from .protocol import ACPProtocol
         p = ACPProtocol(lightning=self.lightning)
         return p.create_offer(
@@ -83,17 +83,17 @@ class NativeProvider:
 
 
 class BridgeProvider:
-    """Type 2: принимает Lightning, платит через сторонний API.
+    """Type 2: accepts Lightning, pays via third-party API.
 
-    Пример: Bridge-agent с Stripe API key.
-    - Агент платит Lightning → Bridge-agent получает саты
-    - Bridge-agent вызывает Stripe API (не сайт, API!) → оплачивает fiat-сервис
-    - Bridge-agent публикует receipt с credentials
+    Example: Bridge-agent with Stripe API key.
+    - Agent pays Lightning → Bridge-agent receives sats
+    - Bridge-agent calls Stripe API (not website, API!) → pays for fiat service
+    - Bridge-agent publishes receipt with credentials
 
-    Fee = markup за арбитраж (typical 3-10%).
+    Fee = arbitrage markup (typical 3-10%).
 
-    ВАЖНО: Bridge-agent вызывает API, НЕ открывает браузер.
-    Stripe API = REST. PayPal API = REST. Всё через HTTP, не через формы.
+    IMPORTANT: Bridge-agent calls API, does NOT open browser.
+    Stripe API = REST. PayPal API = REST. All via HTTP, not forms.
     """
 
     def __init__(self, identity: AgentIdentity, service: str,
@@ -110,7 +110,7 @@ class BridgeProvider:
         self.lightning = lightning or MockLightning()
 
     def get_manifest(self) -> dict:
-        """Manifest с bridge-метаданными."""
+        """Manifest with bridge metadata."""
         from .protocol import ACPProtocol
         p = ACPProtocol(lightning=self.lightning)
         return p.create_manifest(
@@ -132,7 +132,7 @@ class BridgeProvider:
         )
 
     def fulfill(self, request_event: dict) -> tuple[dict, bytes]:
-        """Создаёт offer. В реальности: после settle вызывает Stripe API."""
+        """Creates offer. In reality: after settle calls Stripe API."""
         from .protocol import ACPProtocol
         p = ACPProtocol(lightning=self.lightning)
         return p.create_offer(
@@ -144,14 +144,14 @@ class BridgeProvider:
 
 
 class AdapterProvider:
-    """Type 3: обёртка над существующим сервисом.
+    """Type 3: wrapper over existing service.
 
-    Пример: Bitrefill adapter.
-    - Bitrefill уже принимает Lightning и продаёт gift cards
-    - Adapter = ACP-совместимый manifest поверх Bitrefill API
-    - Агент находит adapter через Nostr, платит, получает gift card код
+    Example: Bitrefill adapter.
+    - Bitrefill already accepts Lightning and sells gift cards
+    - Adapter = ACP-compatible manifest over Bitrefill API
+    - Agent finds adapter via Nostr, pays, gets gift card code
 
-    Adapter = не новый сервис, а мост к существующему.
+    Adapter = not a new service, but a bridge to existing one.
     """
 
     def __init__(self, identity: AgentIdentity, service: str,
@@ -199,7 +199,7 @@ class AdapterProvider:
 
 def route_purchase(query: str, budget_sat: int,
                    providers: list) -> Optional[object]:
-    """Agent routing: выбрать лучшего провайдера.
+    """Agent routing: select best provider.
 
     Priority:
     1. Native (cheapest, no fee)
