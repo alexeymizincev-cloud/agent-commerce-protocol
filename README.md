@@ -185,3 +185,22 @@ MIT
 ## Status
 
 v0.3 DRAFT — ready for community review.
+
+## NIP Proposal
+
+A [NIP-ACP proposal](NIP-ACP.md) has been drafted for the Nostr protocol.
+It defines event kinds 30000-30006 for agent commerce.
+
+## Roadmap
+
+| Step | Status |
+|---|---|
+| Protocol spec + reference impl | ✅ |
+| Cross-language interop (Python ↔ TS) | ✅ |
+| MCP server (Claude Code / Cursor) | ✅ |
+| Real Schnorr signatures (pynostr) | ✅ |
+| Public Nostr relay test | ✅ (3/3 relays) |
+| NIP proposal draft | ✅ |
+| Real Lightning testnet | ⬜ (needs testnet sats) |
+| L402 payment rail integration | ⬜ |
+| Community outreach (Show HN, Nostr) | ⬜ |
