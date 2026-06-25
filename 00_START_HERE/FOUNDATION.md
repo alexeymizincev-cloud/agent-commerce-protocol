@@ -35,7 +35,7 @@ L402 solves payment. But L402 lacks: discovery, atomic delivery, receipt, reputa
 ### Solution
 
 ACP = **a tool in the agent's toolbelt.** A plugin for any framework (Claude Code,
-Hermes, Codex, LangChain). Gives the agent the ability to: discover → pay → receive
+Codex, LangChain, or any custom agent). Gives the agent the ability to: discover → pay → receive
 with guarantee → prove the purchase.
 
 ### Three Roles
@@ -123,7 +123,7 @@ L402 = "how to pay". ACP = "how to find, trust, guarantee, prove".
 
 | Who | What | What they DON'T do |
 |---|---|---|
-| AI (Hermes) | Spec, SDK, harness, tests, code | Outreach, binary decisions |
+| AI agent | Spec, SDK, harness, tests, code | Outreach, binary decisions |
 | Human | Quality control, veto, decisions, outreach | Code, architecture |
 
 WHY — human. HOW — AI. WHAT — jointly.

@@ -41,7 +41,7 @@ ACP = the missing layers. Payment = pluggable (use L402, Lightning, or Cashu).
 │  Human gives agent a wallet (one line)      │
 │  Human: "Buy X"                             │
 ├─────────────────────────────────────────────┤
-│  Agent (Claude Code / Hermes / any)         │
+│  Agent (Claude Code / any framework)         │
 │  └─ ACP tool: discover → confirm → buy      │
 ├──────┬──────────┬───────────────────────────┤
 │ Nostr│ Payment  │  (existing infrastructure) │
@@ -108,7 +108,7 @@ acp/
 ├── demo.py                 # Quick demo
 ├── testnet.py              # Full flow via real relay
 ├── interop_provider.py     # Python provider for interop test
-└── real_testnet_demo.py    # Real service (BTC price from Bybit)
+└── real_testnet_demo.py    # Real service demo (live data fetch)
 ```
 
 ## Quick Start
@@ -123,7 +123,7 @@ python3 demo.py
 # Run full testnet (real WebSocket relay)
 python3 testnet.py
 
-# Run real service demo (fetches live BTC price from Bybit)
+# Run real service demo (fetches live BTC price)
 python3 real_testnet_demo.py
 
 # Cross-language interop (Python provider + TS consumer)
@@ -174,7 +174,7 @@ L3 Adversarial:  7/7   (Sybil, replay, false preimage, spam)
 L4 Agent Tool:  13/13  (confirmation, limits, auto-confirm, receipts)
 
 Cross-language: Python ↔ TypeScript interop PASS
-Real service:   BTC price fetch from Bybit API PASS
+Real service:   Live BTC price fetch PASS
 ```
 
 ## License

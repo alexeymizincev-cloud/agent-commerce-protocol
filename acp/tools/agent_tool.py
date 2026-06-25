@@ -1,5 +1,5 @@
 """
-ACP Agent Tool — plugin for agent frameworks (Claude Code, Hermes, Codex, LangChain).
+ACP Agent Tool — plugin for agent frameworks (Claude Code, Codex, LangChain, or any custom agent).
 
 Principle: user sees ONLY confirmation request + result.
 Everything else (Nostr, Lightning, preimage, receipt) — backend.

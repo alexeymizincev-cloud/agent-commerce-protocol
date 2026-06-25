@@ -95,23 +95,23 @@ async def run_real_testnet(use_real_lightning: bool = False):
     print("[provider] Setting up real service: BTC price fetcher")
     print()
 
-    # Provider = real agent that fetches BTC price from Bybit API
+    # Provider = real agent that fetches BTC price from a public crypto exchange API
     # For demo: we pre-fetch the price and use it as result_data
     import requests as req
     try:
-        resp = req.get("https://api.bybit.com/v5/market/tickers?category=linear&symbol=BTCUSDT",
+        resp = req.get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd",
                        timeout=5)
-        btc_price = resp.json()["result"]["list"][0]["lastPrice"]
+        btc_price = str(resp.json()["data"]["bitcoin"]["usd"])
         result_data = json.dumps({
             "service": "btc_price_fetch",
             "symbol": "BTCUSDT",
             "price": btc_price,
             "timestamp": int(time.time()),
-            "source": "Bybit API",
+            "source": "CoinGecko API",
         }).encode()
         print(f"[provider] Fetched real BTC price: ${btc_price}")
     except Exception as e:
-        print(f"[provider] Bybit API failed, using mock data: {e}")
+        print(f"[provider] a public crypto exchange API failed, using mock data: {e}")
         result_data = json.dumps({
             "service": "btc_price_fetch",
             "price": "61234.56",
