@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.pytest_cache/
+dist/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+.pytest_cache/
+test_results.xml
+
+# TS build
+acp-ts/dist/
+acp-ts/node_modules/
+
+# Keep source files
+!acp-ts/src/
+!acp-ts/package.json
+!acp-ts/tsconfig.json

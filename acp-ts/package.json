@@ -1,0 +1,21 @@
+{
+  "name": "agent-commerce-protocol",
+  "version": "0.1.0",
+  "description": "ACP — Agent Commerce Protocol TypeScript reference implementation",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "demo": "tsx demo.ts",
+    "interop": "tsx interop_test.ts"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.5.0"
+  }
+}
