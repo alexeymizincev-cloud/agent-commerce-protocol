@@ -27,4 +27,4 @@ acp-ts/node_modules/
 # Keep source files
 !acp-ts/src/
 !acp-ts/package.json
-!acp-ts/tsconfig.json
+!acp-ts/tsconfig.jsonacp-ts/build/

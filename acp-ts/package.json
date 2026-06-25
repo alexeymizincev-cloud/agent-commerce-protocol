@@ -10,7 +10,10 @@
     "interop": "tsx interop_test.ts"
   },
   "dependencies": {
-    "ws": "^8.18.0"
+    "@cfworker/json-schema": "^4.1.1",
+    "@modelcontextprotocol/server": "^2.0.0-alpha.2",
+    "ws": "^8.18.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
