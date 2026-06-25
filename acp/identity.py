@@ -1,12 +1,19 @@
 """
 Agent identity = Nostr keypair (secp256k1).
-Uses coincurve for secp256k1 operations.
+Uses pynostr for proper Schnorr (BIP-340) signatures.
+Falls back to coincurve + ECDSA for local testing if pynostr unavailable.
 """
 
 import hashlib
 import secrets
 import json
 from typing import Optional
+
+try:
+    from pynostr.key import PrivateKey
+    HAS_PYNOSTR = True
+except ImportError:
+    HAS_PYNOSTR = False
 
 try:
     import coincurve
@@ -19,8 +26,13 @@ def generate_keypair() -> tuple[bytes, bytes]:
     """Generate a Nostr-compatible secp256k1 keypair.
 
     Returns:
-        (private_key_32bytes, public_key_32bytes_compressed)
+        (private_key_32bytes, public_key_32bytes_xonly)
     """
+    if HAS_PYNOSTR:
+        pk = PrivateKey()
+        return bytes.fromhex(pk.hex()), bytes.fromhex(pk.public_key.hex())
+    
+    # Fallback
     priv = secrets.token_bytes(32)
     pub = _privkey_to_pubkey(priv)
     return priv, pub
@@ -28,12 +40,14 @@ def generate_keypair() -> tuple[bytes, bytes]:
 
 def _privkey_to_pubkey(priv: bytes) -> bytes:
     """Convert 32-byte private key to 32-byte X-only public key (Nostr format)."""
+    if HAS_PYNOSTR:
+        pk = PrivateKey(hex_string=priv.hex())
+        return bytes.fromhex(pk.public_key.hex())
+    
     if HAS_COINCURVE:
         pk = coincurve.PrivateKey(priv)
-        # Return x-only pubkey (32 bytes) — Nostr standard
         return pk.public_key.format(compressed=True)[1:33]
     else:
-        # Fallback: use ecdsa from cryptography lib
         from cryptography.hazmat.primitives.asymmetric import ec
         from cryptography.hazmat.primitives import serialization
         key = ec.derive_private_key(int.from_bytes(priv,'big'), ec.SECP256K1())
@@ -41,7 +55,6 @@ def _privkey_to_pubkey(priv: bytes) -> bytes:
             encoding=serialization.Encoding.X962,
             format=serialization.PublicFormat.UncompressedPoint
         )
-        # Uncompressed = 0x04 + 32 x + 32 y → take x-only (32 bytes)
         return pub_bytes[1:33]
 
 
@@ -58,11 +71,8 @@ def hex_to_pubkey(h: str) -> bytes:
 class NostrEventBuilder:
     """Build and sign Nostr events per NIP-01.
 
-    Nostr event format:
-    [0, pubkey_hex, created_at, kind, tags, content]
-
-    Signed with Schnorr (BIP-340) signature.
-    For v0 testing, we also support ECDSA fallback.
+    Uses pynostr for proper Schnorr (BIP-340) signatures when available.
+    Falls back to ECDSA for local testing only.
     """
 
     @staticmethod
@@ -79,14 +89,26 @@ class NostrEventBuilder:
         if created_at is None:
             created_at = int(_time.time())
 
+        if HAS_PYNOSTR:
+            # Use pynostr for proper Schnorr signatures
+            from pynostr.event import Event
+            pk = PrivateKey(bytes.fromhex(privkey.hex()))
+            ev = Event(
+                pubkey=pk.public_key.hex(),
+                kind=kind,
+                content=content,
+                tags=tags,
+                created_at=created_at,
+            )
+            ev.sign(pk.hex())
+            return ev.to_dict()
+
+        # Fallback: ECDSA (local testing only, public relays will reject)
         pubkey_hex = pubkey.hex()
         event_template = [0, pubkey_hex, created_at, kind, tags, content]
-
-        # Serialize for signing: JSON with no spaces, separators
         serialized = json.dumps(event_template, separators=(',', ':'), ensure_ascii=False)
         msg = hashlib.sha256(serialized.encode('utf-8')).digest()
-
-        sig = _sign_schnorr(privkey, msg)
+        sig = _sign_ecdsa(privkey, msg)
 
         return {
             "id": msg.hex(),
@@ -101,39 +123,27 @@ class NostrEventBuilder:
     @staticmethod
     def verify_event(event: dict) -> bool:
         """Verify a Nostr event signature."""
-        pubkey_hex = event["pubkey"]
-        event_id = event["id"]
-        sig_hex = event["sig"]
+        if HAS_PYNOSTR:
+            from pynostr.event import Event
+            try:
+                ev = Event.from_dict(event)
+                return ev.verify()
+            except Exception:
+                return False
 
+        # Fallback: check event ID matches (local testing)
+        pubkey_hex = event["pubkey"]
         event_template = [
             0, pubkey_hex, event["created_at"],
             event["kind"], event["tags"], event["content"]
         ]
         serialized = json.dumps(event_template, separators=(',', ':'), ensure_ascii=False)
         msg = hashlib.sha256(serialized.encode('utf-8')).digest()
-
-        if msg.hex() != event_id:
-            return False
-
-        pubkey = bytes.fromhex(pubkey_hex)
-        sig = bytes.fromhex(sig_hex)
-        return _verify_schnorr(pubkey, msg, sig)
+        return msg.hex() == event["id"]
 
 
-def _sign_schnorr(privkey: bytes, msg: bytes) -> bytes:
-    """Schnorr sign (BIP-340). Uses coincurve if available.
-
-    Returns 64-byte signature.
-    """
-    if HAS_COINCURVE:
-        pk = coincurve.PrivateKey(privkey)
-        # coincurve has sign_custom for Schnorr / BIP-340
-        # But coincurve doesn't expose BIP-340 schnorr directly.
-        # Use secp256k1's schnorr if available, otherwise ECDSA fallback.
-        pass
-
-    # Fallback: ECDSA signature (64 bytes raw r||s) — for TESTING ONLY
-    # Real Nostr requires Schnorr. We mark this clearly.
+def _sign_ecdsa(privkey: bytes, msg: bytes) -> bytes:
+    """ECDSA sign (fallback for local testing only)."""
     from cryptography.hazmat.primitives.asymmetric import ec
     from cryptography.hazmat.primitives import hashes
     key = ec.derive_private_key(int.from_bytes(privkey, 'big'), ec.SECP256K1())
@@ -142,43 +152,11 @@ def _sign_schnorr(privkey: bytes, msg: bytes) -> bytes:
     return r + s
 
 
-def _verify_schnorr(pubkey: bytes, msg: bytes, sig: bytes) -> bool:
-    """Verify Schnorr / ECDSA signature. Fallback to ECDSA for testing."""
-    if HAS_COINCURVE:
-        # Try coincurve verify
-        pass
-
-    # ECDSA fallback
-    from cryptography.hazmat.primitives.asymmetric import ec
-    from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
-    from cryptography.hazmat.primitives import hashes
-    from cryptography.hazmat.primitives.asymmetric import utils
-
-    r = int.from_bytes(sig[:32], 'big')
-    s = int.from_bytes(sig[32:], 'big')
-    der_sig = encode_dss_sig(r, s)
-
-    # Reconstruct public key from x-coordinate (need y)
-    # For testing, we keep the full pubkey alongside
-    try:
-        from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
-        # We can't easily reconstruct from x-only, so use separate path
-        return True  # For testing, trust the id hash match
-    except:
-        return True
-
-
 def _der_to_rs(der_sig: bytes) -> tuple[bytes, bytes]:
     """Convert DER signature to raw r||s (64 bytes)."""
     from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
     r, s = decode_dss_signature(der_sig)
     return r.to_bytes(32, 'big'), s.to_bytes(32, 'big')
-
-
-def encode_dss_sig(r: int, s: int) -> bytes:
-    """Encode r,s as DER signature."""
-    from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
-    return encode_dss_signature(r, s)
 
 
 class AgentIdentity:
